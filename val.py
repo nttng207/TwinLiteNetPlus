@@ -21,6 +21,7 @@ def validation(args):
     model = TwinLiteNetPlus(args)
     cuda_available = torch.cuda.is_available()
     if cuda_available:
+        print("Using CUDA for validation \n")
         model = model.cuda()
         cudnn.benchmark = True
     
