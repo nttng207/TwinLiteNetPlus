@@ -10,6 +10,8 @@ from PIL import Image
 from skimage.filters import gaussian
 from skimage.restoration import denoise_bilateral
 import albumentations as A
+import json
+
 def letterbox(im, new_shape=(640, 640), color=(114, 114, 114), auto=False, scaleFill=False, scaleup=True, stride=32):
     # Resize and pad image while meeting stride-multiple constraints
     shape = im.shape[:2]  # current shape [height, width]
