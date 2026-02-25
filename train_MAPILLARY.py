@@ -87,12 +87,22 @@ def train_net(args, hyp):
     start_epoch = 0
     if args.resume and os.path.isfile(args.resume):
         ckpt = torch.load(args.resume, map_location="cpu")
-        model.load_state_dict(ckpt["state_dict"], strict=True)
-        optimizer.load_state_dict(ckpt["optimizer"])
-        start_epoch = ckpt["epoch"]
-        if args.ema:
-            ema.ema.load_state_dict(ckpt["ema_state_dict"])
-            ema.updates = ckpt["updates"]
+
+        # CASE 1: full training checkpoint
+        if isinstance(ckpt, dict) and "state_dict" in ckpt:
+            print("=> Resuming full checkpoint")
+            model.load_state_dict(ckpt["state_dict"], strict=True)
+            optimizer.load_state_dict(ckpt["optimizer"])
+            start_epoch = ckpt.get("epoch", 0)
+            if args.ema and ckpt.get("ema_state_dict") is not None:
+                ema.ema.load_state_dict(ckpt["ema_state_dict"])
+                ema.updates = ckpt.get("updates", 0)
+
+        # CASE 2: pretrained weights only
+        else:
+            print("=> Loading pretrained weights only (finetune)")
+            model.load_state_dict(ckpt, strict=False)
+            start_epoch = 0
 
     os.makedirs(args.savedir, exist_ok=True)
 
