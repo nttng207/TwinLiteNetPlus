@@ -144,6 +144,8 @@ if __name__ == '__main__':
     parser.add_argument('--config', default='nano', help='Model configuration')
     parser.add_argument('--verbose', action='store_true', help='Enable verbose logging')
     parser.add_argument('--ema', action='store_true', help='Use Exponential Moving Average (EMA)')
+    parser.add_argument('--data_root', type=str, help='Path to the Mapillary Vistas dataset root')
+
     args = parser.parse_args()
     
     with open(args.hyp, errors='ignore') as f:
