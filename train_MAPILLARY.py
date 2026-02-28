@@ -62,7 +62,9 @@ def train_net(args, hyp):
         shuffle=True,
         num_workers=args.num_workers,
         pin_memory=True,
-        drop_last=True
+        drop_last=True,
+        persistent_workers=True,
+        prefetch_factor=4
     )
 
     val_loader = torch.utils.data.DataLoader(
@@ -71,7 +73,6 @@ def train_net(args, hyp):
         shuffle=False,
         num_workers=args.num_workers,
         pin_memory=True,
-        persistent_workers=True
     )
     
     criterion = TotalLoss(hyp)
