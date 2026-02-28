@@ -1,4 +1,5 @@
 import os
+import time
 import torch
 import torch.optim.lr_scheduler
 import torch.backends.cudnn as cudnn
@@ -35,6 +36,7 @@ class ModelEMA:
 
 def train_net(args, hyp):
     device = "cuda" if torch.cuda.is_available() else "cpu"
+    print(f"Using device: {device}")
     cudnn.benchmark = True
 
     model = TwinLiteNetPlus(args).to(device)
@@ -70,7 +72,7 @@ def train_net(args, hyp):
         num_workers=args.num_workers,
         pin_memory=True
     )
-
+    
     criterion = TotalLoss(hyp)
 
     optimizer = torch.optim.AdamW(
@@ -110,6 +112,7 @@ def train_net(args, hyp):
         poly_lr_scheduler(args, hyp, optimizer, epoch)
 
         model.train()
+        start_train = time.time()
         train(
             args,
             train_loader,
@@ -121,14 +124,18 @@ def train_net(args, hyp):
             False,
             ema
         )
+        end_train = time.time()
+        print(f"Epoch {epoch} training time: {end_train - start_train:.2f} seconds")
 
         model.eval()
+        start_val = time.time()
         da_res, ll_res = val(
             val_loader,
             ema.ema if args.ema else model,
             args=args
         )
-
+        end_val = time.time()
+        print(f"Epoch {epoch} validation time: {end_val - start_val:.2f} seconds")
         print(
             f"[{epoch}] "
             f"DA mIoU: {da_res[2]:.4f} | "

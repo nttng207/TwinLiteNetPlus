@@ -162,6 +162,7 @@ def train(args, train_loader, model, criterion, optimizer, epoch, scaler=None, v
         target = [t.to(device, non_blocking=True) for t in target]
         torch.cuda.synchronize()
         h2d_time = time.perf_counter() - t0
+        print(f"Batch {i}/{total_batches} - Data time: {data_time:.3f}s, H2D time: {h2d_time:.3f}s")
 
         optimizer.zero_grad(set_to_none=True)
 
@@ -172,6 +173,7 @@ def train(args, train_loader, model, criterion, optimizer, epoch, scaler=None, v
             focal_loss, tversky_loss, loss = criterion(output, target)
         torch.cuda.synchronize()
         fw_time = time.perf_counter() - t1
+        print(f"Batch {i}/{total_batches} - Forward time: {fw_time:.3f}s, Loss: {loss.detach().item():.4f}")
 
         # ================== BACKWARD + OPT ==================
         t2 = time.perf_counter()
@@ -184,6 +186,7 @@ def train(args, train_loader, model, criterion, optimizer, epoch, scaler=None, v
             optimizer.step()
         torch.cuda.synchronize()
         bw_time = time.perf_counter() - t2
+        print(f"Batch {i}/{total_batches} - Backward time: {bw_time:.3f}s")
 
         # ================== EMA ==================
         t3 = time.perf_counter()
