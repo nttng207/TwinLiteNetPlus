@@ -2,14 +2,14 @@ import torch
 import torch.backends.cudnn as cudnn
 import torch.optim.lr_scheduler
 import yaml
+import json
 from argparse import ArgumentParser
 from pathlib import Path
 
 from model.model import TwinLiteNetPlus
 from utils import val, netParams
 from loss import TotalLoss
-import BDD100K
-
+from MAPILLARY import MapillaryDataset
 
 def validation(args):
     """
@@ -21,7 +21,6 @@ def validation(args):
     model = TwinLiteNetPlus(args)
     cuda_available = torch.cuda.is_available()
     if cuda_available:
-        print("Using CUDA for validation \n")
         model = model.cuda()
         cudnn.benchmark = True
     
@@ -30,10 +29,25 @@ def validation(args):
         hyp = yaml.safe_load(f)
     
     # Create validation data loader
+
+
+    val_set = MapillaryDataset(
+        hyp=hyp,
+        root=args.data_root,
+        split="validation",
+        valid=True
+    )
+
+
     valLoader = torch.utils.data.DataLoader(
-        BDD100K.Dataset(hyp, valid=True),
-        batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers, pin_memory=True)
+        val_set,
+        batch_size=args.batch_size,
+        shuffle=False,
+        num_workers=args.num_workers,
+        pin_memory=True
+    )
     
+
     # Print model parameter count
     print(f'Total network parameters: {netParams(model)}')
     
@@ -49,6 +63,7 @@ def validation(args):
     print(f"Lane Line Segment: Acc({ll_segment_results[0]:.3f}) IOU({ll_segment_results[1]:.3f})")
 
 
+
 if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--weight', type=str, default="pretrained/large.pth", help='Path to model weights')
@@ -58,6 +73,7 @@ if __name__ == '__main__':
     parser.add_argument('--hyp', type=str, default='./hyperparameters/twinlitev2_hyper.yaml', help='Path to hyperparameters YAML file')
     parser.add_argument('--half', action='store_true', help='Use half precision for inference')
     parser.add_argument('--verbose', action='store_true', help='Enable verbose logging')
-    
+    parser.add_argument('--data_root', type=str, help='Path to the Mapillary Vistas dataset root')
+
     # Parse arguments and run validation
     validation(parser.parse_args())

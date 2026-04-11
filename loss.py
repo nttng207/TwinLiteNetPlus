@@ -41,7 +41,7 @@ class SigleLoss(nn.Module):
         focal_loss = self.seg_focal(out, seg)
 
         loss = focal_loss+tversky_loss
-        return focal_loss.item(),tversky_loss.item(),loss
+        return focal_loss,tversky_loss,loss
 
 class TotalLoss(nn.Module):
     '''
@@ -78,7 +78,7 @@ class TotalLoss(nn.Module):
 
         tversky_loss,focal_loss=tversky_da_loss+tversky_ll_loss,focal_da_loss+ focal_ll_loss
         loss = focal_loss+tversky_loss
-        return focal_loss.item(),tversky_loss.item(),loss
+        return focal_loss,tversky_loss,loss
 
 
 

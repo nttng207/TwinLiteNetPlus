@@ -61,33 +61,159 @@ def poly_lr_scheduler(args, hyp, optimizer, epoch, power=1.5):
     return lr
 
 
-def train(args, train_loader, model, criterion, optimizer, epoch,scaler,verbose=False,ema=None):
-    model.train()
-    print("epoch: ", epoch)
-    total_batches = len(train_loader)
-    pbar = enumerate(train_loader)
-    if verbose:
-        LOGGER.info(('\n' + '%13s' * 4) % ('Epoch','TverskyLoss','FocalLoss' ,'TotalLoss'))
-        pbar = tqdm(pbar, total=total_batches, bar_format='{l_bar}{bar:10}{r_bar}')
-    for i, (_,input, target) in pbar:
-        optimizer.zero_grad()
-        if args.onGPU == True:
-            input = input.cuda().float() / 255.0        
-        output = model(input)
-        with torch.cuda.amp.autocast():
-            focal_loss,tversky_loss,loss = criterion(output,target)
+import time
+import torch
+from tqdm import tqdm
 
-        scaler.scale(loss).backward()
-        scaler.step(optimizer)
-        scaler.update()
+# def train(args, train_loader, model, criterion, optimizer, epoch, scaler=None, verbose=False, ema=None):
+#     model.train()
+#     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+#     print(f"\nEpoch {epoch}")
+#     total_batches = len(train_loader)
+
+#     pbar = tqdm(total=total_batches, dynamic_ncols=True)
+
+#     # ===== timing buffers =====
+#     prev_iter_end = time.perf_counter()
+
+#     for i, (_, input, target) in enumerate(train_loader):
+
+#         # ================== DATA LOADING ==================
+#         data_time = time.perf_counter() - prev_iter_end
+
+#         # ================== CPU → GPU ==================
+#         t0 = time.perf_counter()
+#         input = input.to(device, non_blocking=True).float() / 255.0
+#         target = [t.to(device, non_blocking=True) for t in target]
+#         torch.cuda.synchronize()
+#         h2d_time = time.perf_counter() - t0
+
+#         optimizer.zero_grad(set_to_none=True)
+
+#         # ================== FORWARD + LOSS ==================
+#         t1 = time.perf_counter()
+#         with torch.amp.autocast("cuda", enabled=scaler is not None):
+#             output = model(input)
+#             focal_loss, tversky_loss, loss = criterion(output, target)
+#         torch.cuda.synchronize()
+#         fw_time = time.perf_counter() - t1
+
+#         # ================== BACKWARD + OPT ==================
+#         t2 = time.perf_counter()
+#         if scaler is not None:
+#             scaler.scale(loss).backward()
+#             scaler.step(optimizer)
+#             scaler.update()
+#         else:
+#             loss.backward()
+#             optimizer.step()
+#         torch.cuda.synchronize()
+#         bw_time = time.perf_counter() - t2
+
+#         # ================== EMA ==================
+#         t3 = time.perf_counter()
+#         if ema is not None:
+#             ema.update(model)
+#         torch.cuda.synchronize()
+#         ema_time = time.perf_counter() - t3
+
+#         # ================== LOG ==================
+#         iter_time = data_time + h2d_time + fw_time + bw_time + ema_time
+
+#         pbar.set_postfix({
+#             "data": f"{data_time:.3f}s",
+#             "h2d": f"{h2d_time:.3f}s",
+#             "fw": f"{fw_time:.3f}s",
+#             "bw": f"{bw_time:.3f}s",
+#             "it": f"{iter_time:.3f}s",
+#             "loss": f"{loss.detach().item():.4f}",
+#         })
+
+#         pbar.update(1)
+
+#         prev_iter_end = time.perf_counter()
+
+#     pbar.close()
+
+def train(args, train_loader, model, criterion, optimizer, epoch, scaler=None, verbose=False, ema=None):
+    model.train()
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    print(f"\nEpoch {epoch}")
+    total_batches = len(train_loader)
+
+    pbar = tqdm(
+        total=total_batches,
+        dynamic_ncols=True,
+        smoothing=0.05,   # giúp ETA ổn định hơn
+    )
+
+    prev_iter_end = time.perf_counter()
+
+    for i, (_, input, target) in enumerate(train_loader):
+
+        # ================== DATA LOADING ==================
+        data_time = time.perf_counter() - prev_iter_end
+
+        # ================== CPU → GPU ==================
+        t0 = time.perf_counter()
+        input = input.to(device, non_blocking=True).float() / 255.0
+        target = [t.to(device, non_blocking=True) for t in target]
+        torch.cuda.synchronize()
+        h2d_time = time.perf_counter() - t0
+        print(f"Batch {i}/{total_batches} - Data time: {data_time:.3f}s, H2D time: {h2d_time:.3f}s")
+
+        optimizer.zero_grad(set_to_none=True)
+
+        # ================== FORWARD + LOSS ==================
+        t1 = time.perf_counter()
+        with torch.amp.autocast("cuda", enabled=scaler is not None):
+            output = model(input)
+            focal_loss, tversky_loss, loss = criterion(output, target)
+        torch.cuda.synchronize()
+        fw_time = time.perf_counter() - t1
+        print(f"Batch {i}/{total_batches} - Forward time: {fw_time:.3f}s, Loss: {loss.detach().item():.4f}")
+
+        # ================== BACKWARD + OPT ==================
+        t2 = time.perf_counter()
+        if scaler is not None:
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
+        else:
+            loss.backward()
+            optimizer.step()
+        torch.cuda.synchronize()
+        bw_time = time.perf_counter() - t2
+        print(f"Batch {i}/{total_batches} - Backward time: {bw_time:.3f}s")
+
+        # ================== EMA ==================
+        t3 = time.perf_counter()
         if ema is not None:
             ema.update(model)
-        if verbose:
-            pbar.set_description(('%13s' * 1 + '%13.4g' * 3) %
-                                     (f'{epoch}/{300 - 1}', tversky_loss, focal_loss, loss.item()))
-    return ema if ema is not None else None
+        torch.cuda.synchronize()
+        ema_time = time.perf_counter() - t3
 
+        iter_time = data_time + h2d_time + fw_time + bw_time + ema_time
 
+        # ================== LOG (CHỈ LOG MỖI N BATCH) ==================
+        if i % 20 == 0:
+            pbar.set_postfix({
+                "data": f"{data_time:.3f}s",
+                "h2d":  f"{h2d_time:.3f}s",
+                "fw":   f"{fw_time:.3f}s",
+                "bw":   f"{bw_time:.3f}s",
+                "it":   f"{iter_time:.3f}s",
+                "focal": f"{focal_loss.detach().item():.4f}",
+                "tver":  f"{tversky_loss.detach().item():.4f}",
+                "loss":  f"{loss.detach().item():.4f}",
+            })
+
+        pbar.update(1)
+        prev_iter_end = time.perf_counter()
+
+    pbar.close()
 
 
 @torch.no_grad()
